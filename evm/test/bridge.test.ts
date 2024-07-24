@@ -256,6 +256,119 @@ describe("PythBridge", () => {
     });
   });
 
+  describe("reInitiateClaimRequest", () => {
+    it("Should revert if caller is non-owner re-intiate claim request", async () => {
+      const leaf = generateLeafNode(
+        sampleData[0].address,
+        sampleData[0].amount
+      );
+      const proof = merkleTree.getHexProof(leaf);
+
+      await expect(
+        bridge
+          .connect(bob)
+          .reInitiateClaimRequest(
+            solanaAddressToBytes32(solAddress),
+            owner.address,
+            10000,
+            proof,
+            { value: 3 }
+          )
+      ).to.be.revertedWithCustomError(bridge, "OwnableUnauthorizedAccount");
+    });
+
+    it("should revert if the pause by owner", async () => {
+      await bridge.connect(owner).pause();
+      const leaf = generateLeafNode(
+        sampleData[0].address,
+        sampleData[0].amount
+      );
+      const proof = merkleTree.getHexProof(leaf);
+      await expect(
+        bridge.reInitiateClaimRequest(
+          solanaAddressToBytes32(solAddress),
+          owner.address,
+          10000,
+          proof,
+          { value: 3 }
+        )
+      ).to.be.revertedWithCustomError(bridge, "EnforcedPause");
+    });
+
+    it("should revert when user not claimed and retrying", async () => {
+      const leaf = generateLeafNode(
+        sampleData[0].address,
+        sampleData[0].amount
+      );
+      const proof = merkleTree.getHexProof(leaf);
+
+      await expect(
+        bridge
+          .connect(owner)
+          .reInitiateClaimRequest(
+            solanaAddressToBytes32(solAddress),
+            owner.address,
+            10000,
+            proof
+          )
+      ).to.be.revertedWith("Not Initiated");
+    });
+
+    it("should revert if user pass invalid proof", async () => {
+      let leaf = generateLeafNode(sampleData[0].address, sampleData[0].amount);
+      let proof = merkleTree.getHexProof(leaf);
+
+      await bridge.initializeClaimRequest(
+        solanaAddressToBytes32(solAddress),
+        10000,
+        proof,
+        { value: 3 }
+      );
+
+      leaf = generateLeafNode(sampleData[1].address, sampleData[0].amount);
+
+      proof = merkleTree.getHexProof(leaf);
+
+      await expect(
+        bridge.reInitiateClaimRequest(
+          solanaAddressToBytes32(solAddress),
+          owner.address,
+          10000,
+          proof,
+          { value: 3 }
+        )
+      ).to.be.revertedWith("Invalid Proof");
+    });
+    it("owner should be able to re-initiate claim request", async () => {
+      const leaf = generateLeafNode(
+        sampleData[1].address,
+        sampleData[1].amount
+      );
+      const proof = merkleTree.getHexProof(leaf);
+
+      await bridge
+        .connect(alice)
+        .initializeClaimRequest(
+          solanaAddressToBytes32(solAddress),
+          11000,
+          proof,
+          { value: 3 }
+        );
+
+      expect(await bridge.isInitiated(alice.address)).to.be.equals(true);
+
+      await bridge
+        .connect(owner)
+        .reInitiateClaimRequest(
+          solanaAddressToBytes32(solAddress),
+          alice.address,
+          11000,
+          proof,
+          { value: 3 }
+        );
+    });
+  });
+
   describe("pausable oz", () => {
     it("should revert if non owner call pause", async () => {
       await expect(bridge.connect(alice).pause()).to.be.revertedWithCustomError(
