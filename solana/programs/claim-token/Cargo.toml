@@ -1,0 +1,22 @@
+[package]
+name = "claim-token"
+version = "0.1.0"
+description = "Created with Anchor"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "claim_token"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+
+[dependencies]
+anchor-lang = { version = "^0.28.0" }
+anchor-spl = "^0.28.0"
+wormhole-anchor-sdk = { path = "../../modules/wormhole-anchor-sdk", default-features = false }
+wormhole-io = "0.1.3"
