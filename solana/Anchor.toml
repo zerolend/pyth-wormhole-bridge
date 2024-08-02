@@ -5,7 +5,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-claim_token = "9rSZyDa9cR27FntxbFMZmurfUjNTTsMMYfxWY9H3iN6C"
+claim_token = "FwUNgovwW4yHXfqJiVWuWgCpJfeSqtfsPzDBTL9LGX6g"
 
 [registry]
 url = "https://api.apr.dev"
