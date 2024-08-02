@@ -3,38 +3,38 @@ use std::io;
 use wormhole_io::Readable;
 
 const PAYLOAD_ID_ALIVE: u8 = 0;
-const PAYLOAD_ID_HELLO: u8 = 1;
+const PAYLOAD_ID_USER_INFO: u8 = 1;
 
-pub const HELLO_MESSAGE_MAX_LENGTH: usize = 512;
+pub const BRIDGE_MESSAGE_MAX_LENGTH: usize = 512;
 
 #[derive(Clone)]
 /// Expected message types for this program. Only valid payloads are:
 /// * `Alive`: Payload ID == 0. Emitted when [`initialize`](crate::initialize)
 ///  is called).
-/// * `Hello`: Payload ID == 1. Emitted when
+/// * `UserInfo`: Payload ID == 1. Emitted when
 /// [`send_message`](crate::send_message) is called).
 ///
 /// Payload IDs are encoded as u8.
-pub enum HelloWorldMessage {
+pub enum BridgeMessage {
     Alive { program_id: Pubkey },
-    Hello { message: Vec<u8> },
+    UserInfo { message: Vec<u8> },
 }
 
-impl AnchorSerialize for HelloWorldMessage {
+impl AnchorSerialize for BridgeMessage {
     fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         match self {
-            HelloWorldMessage::Alive { program_id } => {
+            BridgeMessage::Alive { program_id } => {
                 PAYLOAD_ID_ALIVE.serialize(writer)?;
                 program_id.serialize(writer)
             }
-            HelloWorldMessage::Hello { message } => {
-                if message.len() > HELLO_MESSAGE_MAX_LENGTH {
+            BridgeMessage::UserInfo { message } => {
+                if message.len() > BRIDGE_MESSAGE_MAX_LENGTH {
                     Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
-                        format!("message exceeds {HELLO_MESSAGE_MAX_LENGTH} bytes"),
+                        format!("message exceeds {BRIDGE_MESSAGE_MAX_LENGTH} bytes"),
                     ))
                 } else {
-                    PAYLOAD_ID_HELLO.serialize(writer)?;
+                    PAYLOAD_ID_USER_INFO.serialize(writer)?;
                     (message.len() as u16).to_be_bytes().serialize(writer)?;
                     for item in message {
                         item.serialize(writer)?;
@@ -46,23 +46,23 @@ impl AnchorSerialize for HelloWorldMessage {
     }
 }
 
-impl AnchorDeserialize for HelloWorldMessage {
+impl AnchorDeserialize for BridgeMessage {
     fn deserialize_reader<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         match u8::read(reader)? {
-            PAYLOAD_ID_ALIVE => Ok(HelloWorldMessage::Alive {
+            PAYLOAD_ID_ALIVE => Ok(BridgeMessage::Alive {
                 program_id: Pubkey::try_from(<[u8; 32]>::read(reader)?).unwrap(),
             }),
-            PAYLOAD_ID_HELLO => {
+            PAYLOAD_ID_USER_INFO => {
                 let length = u16::read(reader)? as usize;
-                if length > HELLO_MESSAGE_MAX_LENGTH {
+                if length > BRIDGE_MESSAGE_MAX_LENGTH {
                     Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
-                        format!("message exceeds {HELLO_MESSAGE_MAX_LENGTH} bytes"),
+                        format!("message exceeds {BRIDGE_MESSAGE_MAX_LENGTH} bytes"),
                     ))
                 } else {
                     let mut buf = vec![0; length];
                     reader.read_exact(&mut buf)?;
-                    Ok(HelloWorldMessage::Hello { message: buf })
+                    Ok(BridgeMessage::UserInfo { message: buf })
                 }
             }
             _ => Err(io::Error::new(
@@ -82,7 +82,7 @@ pub mod test {
     #[test]
     fn test_message_alive() -> Result<()> {
         let my_program_id = Pubkey::new_unique();
-        let msg = HelloWorldMessage::Alive {
+        let msg = BridgeMessage::Alive {
             program_id: my_program_id,
         };
 
@@ -101,8 +101,8 @@ pub mod test {
         assert_eq!(program_id_bytes, my_program_id.to_bytes());
 
         // Now deserialize the encoded message.
-        match HelloWorldMessage::deserialize(&mut encoded.as_slice())? {
-            HelloWorldMessage::Alive { program_id } => {
+        match BridgeMessage::deserialize(&mut encoded.as_slice())? {
+            BridgeMessage::Alive { program_id } => {
                 assert_eq!(program_id, my_program_id)
             }
             _ => assert!(false, "incorrect deserialization"),
@@ -112,9 +112,9 @@ pub mod test {
     }
 
     #[test]
-    fn test_message_hello() -> Result<()> {
+    fn test_message_user_info() -> Result<()> {
         let raw_message = String::from("All your base are belong to us");
-        let msg = HelloWorldMessage::Hello {
+        let msg = BridgeMessage::UserInfo {
             message: raw_message.as_bytes().to_vec(),
         };
 
@@ -128,7 +128,7 @@ pub mod test {
         );
 
         // Verify Payload ID.
-        assert_eq!(encoded[0], PAYLOAD_ID_HELLO);
+        assert_eq!(encoded[0], PAYLOAD_ID_USER_INFO);
 
         // Verify message length.
         let mut message_len_bytes = [0u8; 2];
@@ -144,8 +144,8 @@ pub mod test {
         assert_eq!(from_utf8_result.unwrap(), raw_message);
 
         // Now deserialize the encoded message.
-        match HelloWorldMessage::deserialize(&mut encoded.as_slice())? {
-            HelloWorldMessage::Hello { message } => {
+        match BridgeMessage::deserialize(&mut encoded.as_slice())? {
+            BridgeMessage::UserInfo { message } => {
                 assert_eq!(message, raw_message.as_bytes())
             }
             _ => assert!(false, "incorrect deserialization"),
@@ -155,7 +155,7 @@ pub mod test {
     }
 
     #[test]
-    fn test_message_hello_too_large() -> Result<()> {
+    fn test_message_user_info_too_large() -> Result<()> {
         let n: usize = 513;
         let raw_message = {
             let mut out = Vec::with_capacity(n);
@@ -164,7 +164,7 @@ pub mod test {
             }
             String::from_utf8(out).unwrap()
         };
-        let msg = HelloWorldMessage::Hello {
+        let msg = BridgeMessage::UserInfo {
             message: raw_message.as_bytes().to_vec(),
         };
 
@@ -176,7 +176,7 @@ pub mod test {
         };
 
         // Serialize manually and then attempt to deserialize.
-        encoded.push(PAYLOAD_ID_HELLO);
+        encoded.push(PAYLOAD_ID_USER_INFO);
         encoded.extend_from_slice(&(raw_message.len() as u16).to_be_bytes());
         encoded.extend_from_slice(raw_message.as_bytes());
 
@@ -186,7 +186,7 @@ pub mod test {
         );
 
         // Verify Payload ID.
-        assert_eq!(encoded[0], PAYLOAD_ID_HELLO);
+        assert_eq!(encoded[0], PAYLOAD_ID_USER_INFO);
 
         // Verify message length.
         let mut message_len_bytes = [0u8; 2];
@@ -196,7 +196,7 @@ pub mod test {
             raw_message.len()
         );
 
-        match HelloWorldMessage::deserialize(&mut encoded.as_slice()) {
+        match BridgeMessage::deserialize(&mut encoded.as_slice()) {
             Err(e) => assert_eq!(e.kind(), io::ErrorKind::InvalidInput),
             _ => assert!(false, "not supposed to deserialize"),
         };

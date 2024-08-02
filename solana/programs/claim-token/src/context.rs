@@ -2,9 +2,9 @@ use anchor_lang::prelude::*;
 use wormhole_anchor_sdk::wormhole;
 
 use crate::{
-    error::HelloWorldError,
-    message::HelloWorldMessage,
-    state::{Config, ForeignEmitter, Received, WormholeEmitter},
+    error::BridgeMessageError,
+    message::BridgeMessage,
+    state::{Config, ForeignEmitter, Received, WormholeEmitter, UserState},
 };
 
 /// AKA `b"sent"`.
@@ -115,7 +115,7 @@ pub struct RegisterEmitter<'info> {
     pub owner: Signer<'info>,
 
     #[account(
-        has_one = owner @ HelloWorldError::OwnerOnly,
+        has_one = owner @ BridgeMessageError::OwnerOnly,
         seeds = [Config::SEED_PREFIX],
         bump
     )]
@@ -168,9 +168,9 @@ pub struct ReceiveMessage<'info> {
         bump,
         seeds::program = wormhole_program
     )]
-    /// Verified Wormhole message account. The Wormhole program verified
+    /// Verified Wormhole message accoften contain structured data such as headers, payloads, and possibly nested structures. You'llount. The Wormhole program verified
     /// signatures and posted the account data here. Read-only.
-    pub posted: Account<'info, wormhole::PostedVaa<HelloWorldMessage>>,
+    pub posted: Account<'info, wormhole::PostedVaa<BridgeMessage>>,
 
     #[account(
         seeds = [
@@ -178,7 +178,7 @@ pub struct ReceiveMessage<'info> {
             &posted.emitter_chain().to_le_bytes()[..]
         ],
         bump,
-        constraint = foreign_emitter.verify(posted.emitter_address()) @ HelloWorldError::InvalidForeignEmitter
+        constraint = foreign_emitter.verify(posted.emitter_address()) @ BridgeMessageError::InvalidForeignEmitter
     )]
     /// Foreign emitter account. The posted message's `emitter_address` must
     /// agree with the one we have registered for this message's `emitter_chain`
@@ -201,6 +201,17 @@ pub struct ReceiveMessage<'info> {
     /// This account cannot be overwritten, and will prevent Wormhole message
     /// replay with the same sequence.
     pub received: Account<'info, Received>,
+
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + 32 + 8
+    )]
+    /// Received account. [`receive_message`](crate::receive_message) will
+    /// deserialize the Wormhole message's payload and save it to this account.
+    /// This account cannot be overwritten, and will prevent Wormhole message
+    /// replay with the same sequence.
+    pub user_info: Account<'info, UserState>,
 
     /// System program.
     pub system_program: Program<'info, System>,
